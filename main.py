@@ -2,13 +2,12 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from googletrans import Translator
+from deep_translator import MyMemoryTranslator
 
 intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
-translator = Translator()
 
 user_languages = {}
 
@@ -43,14 +42,15 @@ async def traducir_mensaje(interaction: discord.Interaction, message: discord.Me
         return
 
     try:
-        traduccion = await translator.translate(message.content, dest=idioma_destino)
+        traduccion = MyMemoryTranslator(source='auto', target=idioma_destino).translate(message.content)
         nombre_idioma = IDIOMAS_NOM.get(idioma_destino, idioma_destino)
         
         await interaction.response.send_message(
-            f"🌐 **Traducción privada ({nombre_idioma}):**\n{traduccion.text}",
+            f"🌐 **Traducción privada ({nombre_idioma}):**\n{traduccion}",
             ephemeral=True
         )
     except Exception as e:
+        print(f"Error: {e}")
         await interaction.response.send_message("Ocurrió un error al procesar la traducción. Inténtalo de nuevo en unos segundos.", ephemeral=True)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
