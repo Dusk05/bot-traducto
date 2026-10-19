@@ -2,7 +2,7 @@ import os
 import discord
 from discord.ext import commands
 from discord import app_commands
-from deep_translator import MyMemoryTranslator
+import requests
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -42,7 +42,18 @@ async def traducir_mensaje(interaction: discord.Interaction, message: discord.Me
         return
 
     try:
-        traduccion = MyMemoryTranslator(source='auto', target=idioma_destino).translate(message.content)
+        url = "https://translate.googleapis.com/translate_a/single"
+        params = {
+            "client": "gtx",
+            "sl": "auto",
+            "tl": idioma_destino,
+            "dt": "t",
+            "q": message.content
+        }
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        traduccion = "".join([sentence[0] for sentence in data[0]])
         nombre_idioma = IDIOMAS_NOM.get(idioma_destino, idioma_destino)
         
         await interaction.response.send_message(
