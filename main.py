@@ -1,4 +1,5 @@
 import os
+import time
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -42,13 +43,23 @@ async def traducir_mensaje(interaction: discord.Interaction, message: discord.Me
         return
 
     try:
-        resultado = GoogleTranslator(source='auto', target=idioma_destino).translate(message.content)
+        # Intento de traducción con reintento automático si hay saturación
+        resultado = None
+        for intento in range(3):
+            try:
+                resultado = GoogleTranslator(source='auto', target=idioma_destino).translate(message.content)
+                break
+            except Exception:
+                if intento == 2:
+                    raise
+                time.sleep(1)
+
         nombre_idioma = IDIOMAS_NOM.get(idioma_destino, idioma_destino)
         await interaction.response.send_message(
             f"🌐 **Traducción privada ({nombre_idioma}):**\n{resultado}",
             ephemeral=True
         )
     except Exception as e:
-        await interaction.response.send_message(f"Ocurrió un error al traducir el mensaje: {e}", ephemeral=True)
+        await interaction.response.send_message(f"El servicio de traducción está temporalmente ocupado. Por favor, intenta de nuevo en unos segundos.", ephemeral=True)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
