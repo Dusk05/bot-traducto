@@ -9,7 +9,7 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Diccionario temporal para guardar el idioma de cada usuario
+# Diccionario para guardar el idioma preferido de cada usuario
 user_languages = {}
 
 IDIOMAS_NOM = {
@@ -34,7 +34,44 @@ async def on_ready():
     except Exception as e:
         print(e)
 
-# Vista con menú desplegable (Select Menu) para elegir el idioma
+# Evento para traducir automáticamente cada mensaje nuevo
+@bot.event
+async def on_message(message):
+    # Evitar que el bot responda a sus propios mensajes para prevenir bucles
+    if message.author.bot:
+        return
+
+    # Verificar si el usuario configuró un idioma (si no, por defecto español)
+    idioma_destino = user_languages.get(message.author.id)
+
+    if idioma_destino and message.content:
+        try:
+            url = "https://translate.googleapis.com/translate_a/single"
+            params = {
+                "client": "gtx",
+                "sl": "auto",
+                "tl": idioma_destino,
+                "dt": "t",
+                "q": message.content
+            }
+            response = requests.get(url, params=params)
+            data = response.json()
+            
+            traduccion = "".join([sentence[0] for sentence in data[0]])
+            nombre_idioma = IDIOMAS_NOM.get(idioma_destino, idioma_destino)
+            
+            # Enviar la traducción de forma privada (ephemeral no se puede en on_message directo, 
+            # así que se envía al canal etiquetando al usuario o por mensaje directo)
+            await message.channel.send(
+                f"🌐 **Traducción automática para {message.author.mention} ({nombre_idioma}):**\n{traduccion}"
+            )
+        except Exception as e:
+            print(f"Error en traducción automática: {e}")
+
+    # Permitir que los comandos de barra sigan funcionando
+    await bot.process_commands(message)
+
+# Vista con menú desplegable para elegir el idioma
 class SelectIdiomaView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=60)
@@ -47,45 +84,13 @@ class SelectIdiomaView(discord.ui.View):
     )
     async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
         user_languages[interaction.user.id] = select.values[0]
-        nombre_Elegido = IDIOMAS_NOM.get(select.values[0])
-        await interaction.response.send_message(f"✅ ¡Tu idioma predeterminado se ha cambiado a **{nombre_Elegido}**!", ephemeral=True)
+        nombre_elegido = IDIOMAS_NOM.get(select.values[0])
+        await interaction.response.send_message(f"✅ ¡Idioma configurado para traducción automática: **{nombre_elegido}**!", ephemeral=True)
 
 # Comando de barra para abrir el selector de idioma
-@bot.tree.command(name="idioma", description="Configura tu idioma preferido para las traducciones")
+@bot.tree.command(name="idioma", description="Configura tu idioma preferido para las traducciones automáticas")
 async def idioma(interaction: discord.Interaction):
     view = SelectIdiomaView()
-    await interaction.response.send_message("Selecciona en el menú de abajo el idioma al que deseas traducir:", view=view, ephemeral=True)
-
-# Menú contextual (clic derecho en un mensaje)
-@bot.tree.context_menu(name="Traducir para mí")
-async def traducir_mensaje(interaction: discord.Interaction, message: discord.Message):
-    idioma_destino = user_languages.get(interaction.user.id, "es")
-
-    if not message.content:
-        await interaction.response.send_message("El mensaje seleccionado no contiene texto para traducir.", ephemeral=True)
-        return
-
-    try:
-        url = "https://translate.googleapis.com/translate_a/single"
-        params = {
-            "client": "gtx",
-            "sl": "auto",
-            "tl": idioma_destino,
-            "dt": "t",
-            "q": message.content
-        }
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        traduccion = "".join([sentence[0] for sentence in data[0]])
-        nombre_idioma = IDIOMAS_NOM.get(idioma_destino, idioma_destino)
-        
-        await interaction.response.send_message(
-            f"🌐 **Traducción privada ({nombre_idioma}):**\n{traduccion}",
-            ephemeral=True
-        )
-    except Exception as e:
-        print(f"Error: {e}")
-        await interaction.response.send_message("Ocurrió un error al procesar la traducción. Inténtalo de nuevo en unos segundos.", ephemeral=True)
+    await interaction.response.send_message("Selecciona en el menú de abajo el idioma al que deseas que se traduzcan los mensajes:", view=view, ephemeral=True)
 
 bot.run(os.getenv("DISCORD_TOKEN"))
